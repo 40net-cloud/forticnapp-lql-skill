@@ -11,6 +11,12 @@ FortiCNAPP LQL Reference Guide (docs.fortinet.com).
 
 Usage:
     uv run scripts/generate_references.py [--version 26.2]
+    uv run scripts/generate_references.py --print-remote-version
+
+With no --version, the guide version is detected from the docs site and
+stamped into the provenance headers. --print-remote-version just prints that
+detected version and exits (used by the refresh GitHub Actions workflow to
+decide whether a regeneration is needed).
 
 Dependencies (beautifulsoup4, markdownify, plus a curl on PATH) are declared
 both in the PEP 723 block above and in the repo pyproject.toml, so `uv run`
@@ -21,12 +27,17 @@ converts it to markdown, cleans it (unescape, strip links, notes -> blockquotes)
 compacts datasource tables to one-line bullets, splits the datasource metadata
 page per provider, and stamps each output file with a provenance header.
 
+The guide version the skill is based on is the single source of truth in
+skills/forticnapp-lql/guide-version.json — this script rewrites it on every
+run, and the refresh workflow reads it to decide whether to regenerate.
+
 SKILL.md is NOT regenerated — it is hand-maintained. After regenerating,
 diff the references and update SKILL.md if syntax/policy rules changed.
 """
 
 import argparse
 import datetime
+import json
 import os
 import re
 import subprocess
@@ -48,6 +59,9 @@ PAGES = {
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
 
+# The version-picker menu on every guide page carries: title: 'Version: 26.2.0'
+VERSION_RE = re.compile(r"Version:\s*([0-9]+(?:\.[0-9]+){1,2})")
+
 # Provider grouping for splitting the datasource-metadata page (## headings).
 DATASOURCE_GROUPS = {
     "datasources-aws.md": ["## AWS Configuration Datasources",
@@ -66,6 +80,20 @@ def fetch(url):
     out = subprocess.run(["curl", "-sL", "-A", UA, url],
                          capture_output=True, check=True)
     return out.stdout.decode("utf-8", errors="replace")
+
+
+def detect_remote_version(html=None):
+    """Read the guide version from the docs-site version picker.
+
+    Returns e.g. "26.2" (a trailing ".0" patch component is dropped so the
+    value matches the two-part version stamped in existing provenance headers).
+    """
+    if html is None:
+        html = fetch(PAGES["overview"])
+    m = VERSION_RE.search(html)
+    if not m:
+        sys.exit("could not detect guide version — docs.fortinet.com layout may have changed")
+    return re.sub(r"\.0$", "", m.group(1))
 
 
 def html_to_markdown(html):
@@ -121,9 +149,19 @@ def provenance(urls, version):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--version", default="26.2",
-                    help="Guide version stamped in provenance headers")
+    ap.add_argument("--version", default=None,
+                    help="Guide version stamped in provenance headers "
+                         "(default: detect from docs.fortinet.com)")
+    ap.add_argument("--print-remote-version", action="store_true",
+                    help="Print the guide version detected on docs.fortinet.com and exit")
     args = ap.parse_args()
+
+    if args.print_remote_version:
+        print(detect_remote_version())
+        return
+
+    version = args.version or detect_remote_version()
+    print(f"guide version: {version}")
 
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     dst = os.path.join(repo, "skills", "forticnapp-lql", "references")
@@ -137,7 +175,7 @@ def main():
     def write(fname, content, urls):
         path = os.path.join(dst, fname)
         with open(path, "w") as fh:
-            fh.write(provenance(urls, args.version) + content)
+            fh.write(provenance(urls, version) + content)
         print(f"  wrote {fname} ({len(content) // 4} tokens approx)")
 
     write("syntax.md",
@@ -159,6 +197,16 @@ def main():
               [PAGES["datasource-metadata"]])
     for leftover in by_title:
         print(f"  WARNING: unassigned section {leftover!r} — add it to DATASOURCE_GROUPS")
+
+    version_file = os.path.join(os.path.dirname(dst), "guide-version.json")
+    with open(version_file, "w") as fh:
+        json.dump({
+            "version": version,
+            "fetched": datetime.date.today().isoformat(),
+            "source": BASE,
+        }, fh, indent=2)
+        fh.write("\n")
+    print(f"  wrote guide-version.json ({version})")
 
 
 if __name__ == "__main__":

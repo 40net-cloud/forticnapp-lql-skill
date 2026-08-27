@@ -1,0 +1,8 @@
+# Local-only offline copy of the guide — the HTML docs are the source of truth.
+FortiCNAPP-LQL_Reference_Guide.pdf
+*.pdf
+
+# uv / Python
+.venv/
+uv.lock
+__pycache__/

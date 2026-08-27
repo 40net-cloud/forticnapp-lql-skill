@@ -10,6 +10,7 @@ The skill condenses the ~239-page FortiCNAPP LQL Reference Guide (~90K tokens ra
 .claude/skills/forticnapp-lql/
 ├── SKILL.md                        # hand-written core: query anatomy, policy
 │                                   #   constraints, workflow, policy YAML template
+├── guide-version.json              # source of truth: which guide version references/ is built from
 └── references/                     # generated from the online docs
     ├── syntax.md                   # grammar, joins, operators, policy-eval limits
     ├── functions.md                # all LQL functions
@@ -21,8 +22,9 @@ The skill condenses the ~239-page FortiCNAPP LQL Reference Guide (~90K tokens ra
     └── datasources-agent-k8s.md    # LW_HA_*/LW_HE_*/LW_APA_*/LW_CE_* with fields
 scripts/
 └── generate_references.py          # regenerates references/ from docs.fortinet.com (run with uv)
+.github/workflows/
+└── refresh-lql-skill.yml           # weekly version check -> regenerate -> open PR
 pyproject.toml                      # dependency set for the regenerate script
-FortiCNAPP-LQL_Reference_Guide.pdf  # offline fallback copy of the guide (26.2)
 ```
 
 The skill auto-activates in any Claude Code session opened in this repo. To use it in other projects, copy `.claude/skills/forticnapp-lql/` into that project's `.claude/skills/`, or into `~/.claude/skills/` to make it personal/global.
@@ -32,13 +34,29 @@ The skill auto-activates in any Claude Code session opened in this repo. To use 
 The reference files are **generated** from the official HTML guide:
 
 - Base URL: <https://docs.fortinet.com/document/forticnapp/latest/lql-reference/598361/lql-overview>
-- Current generation: guide version **26.2**, fetched **2026-08-26** (each file carries a provenance comment with its exact source URLs and fetch date).
+- The guide version the skill is built from lives in **`skills/forticnapp-lql/guide-version.json`**
+  (`version` + `fetched` date). This is the single source of truth: `generate_references.py`
+  rewrites it on every run, and the refresh workflow reads it to decide whether to regenerate.
+  Each generated file also carries a provenance comment with its exact source URLs and fetch date.
 
 The policy-wrapper section of `SKILL.md` additionally draws on [Create Policies with the CLI](https://docs.fortinet.com/document/lacework-forticnapp/latest/cli-reference/564847/create-policies-with-the-cli).
 
-The local PDF is a point-in-time offline copy; the HTML guide is the source of truth for updates (Fortinet updates it roughly monthly per its change log — mostly new datasources).
-
 ## Updating the skill
+
+### Automated (GitHub Actions)
+
+`.github/workflows/refresh-lql-skill.yml` runs every Monday. It compares the guide
+version published on docs.fortinet.com with `skills/forticnapp-lql/guide-version.json`;
+if they differ it regenerates the reference files (the script also rewrites
+`guide-version.json`) and opens a pull request labelled `automation` with a review
+checklist. Run it on demand from the **Actions** tab — use the **force** input to
+regenerate even when the version is unchanged (catches content-only updates such as
+new datasources).
+
+The workflow never touches `SKILL.md` or `README.md`; those steps below stay
+manual and are listed in the PR body.
+
+### Manual
 
 1. Regenerate the reference files. This needs [`uv`](https://docs.astral.sh/uv/) and `curl` on
    your `PATH`; `uv` resolves `beautifulsoup4` and `markdownify` automatically from
@@ -46,11 +64,15 @@ The local PDF is a point-in-time offline copy; the HTML guide is the source of t
    virtualenv to create or activate:
 
    ```sh
-   uv run scripts/generate_references.py --version 26.3   # stamp the new guide version
+   uv run scripts/generate_references.py                  # detect + stamp the live guide version
+   uv run scripts/generate_references.py --version 26.3   # or stamp an explicit version
    ```
 
-   The script is also directly executable (`./scripts/generate_references.py --version 26.3`)
-   thanks to its `uv run --script` shebang.
+   The script is also directly executable (`./scripts/generate_references.py`) thanks to
+   its `uv run --script` shebang. `--print-remote-version` prints the version detected on
+   docs.fortinet.com without regenerating anything. Every regeneration rewrites
+   `skills/forticnapp-lql/guide-version.json` (`version` + `fetched` date) — commit it
+   alongside the `references/` changes.
 
 2. Review the script's output for `WARNING` lines — they mean the guide gained a new top-level datasource section or changed structure; add new sections to `DATASOURCE_GROUPS` in the script.
 
@@ -60,8 +82,7 @@ The local PDF is a point-in-time offline copy; the HTML guide is the source of t
    - No raw `\_` escapes, `| --- |` table separators, or `[text](url)` links in the generated files (the cleaner should have handled them).
    - `grep -i -A5 '^### <SomeService>' .claude/skills/forticnapp-lql/references/datasources-azure.md` returns a sensible datasource list.
    - Example query YAML blocks in `examples.md` are intact.
-
-5. Optionally refresh the offline PDF and update the version/date in this README.
+   - `skills/forticnapp-lql/guide-version.json` shows the new `version` / `fetched` date.
 
 ## Maintenance notes
 

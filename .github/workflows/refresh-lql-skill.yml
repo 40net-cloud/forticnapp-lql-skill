@@ -1,0 +1,88 @@
+name: Refresh LQL skill
+
+# Weekly check of the FortiCNAPP LQL Reference Guide on docs.fortinet.com.
+# If the published guide version differs from skills/forticnapp-lql/guide-version.json,
+# regenerate the reference files (the script also rewrites guide-version.json) and
+# open a pull request for a human to review (SKILL.md and README are never touched
+# automatically — see README "Updating the skill").
+#
+# Requires repo/org setting: Settings -> Actions -> General ->
+# "Allow GitHub Actions to create and approve pull requests".
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Regenerate even if the guide version is unchanged (catches content-only updates)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: refresh-lql-skill
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Detect guide version
+        id: ver
+        run: |
+          remote="$(uv run scripts/generate_references.py --print-remote-version)"
+          local="$(jq -r .version skills/forticnapp-lql/guide-version.json)"
+          echo "remote=$remote" >> "$GITHUB_OUTPUT"
+          echo "local=$local"   >> "$GITHUB_OUTPUT"
+          echo "guide version: local=$local  remote=$remote"
+
+      - name: Regenerate references
+        id: regen
+        if: >-
+          steps.ver.outputs.remote != steps.ver.outputs.local ||
+          github.event.inputs.force == 'true'
+        run: |
+          set -o pipefail
+          uv run scripts/generate_references.py --version "${{ steps.ver.outputs.remote }}" \
+            | tee regen.log
+          {
+            echo 'warnings<<WARN_EOF'
+            grep -E '^\s*WARNING:' regen.log || echo '(none)'
+            echo WARN_EOF
+          } >> "$GITHUB_OUTPUT"
+          rm -f regen.log
+
+      - name: Create pull request
+        if: steps.regen.outcome == 'success'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/refresh-lql-skill
+          delete-branch: true
+          title: "Refresh LQL skill for FortiCNAPP guide ${{ steps.ver.outputs.remote }}"
+          commit-message: "Regenerate LQL references from FortiCNAPP ${{ steps.ver.outputs.remote }} guide"
+          labels: automation
+          body: |
+            Automated regeneration of `skills/forticnapp-lql/references/` and
+            `skills/forticnapp-lql/guide-version.json` from
+            <https://docs.fortinet.com/document/forticnapp/latest/lql-reference>.
+
+            **Guide version:** `${{ steps.ver.outputs.local }}` → `${{ steps.ver.outputs.remote }}`
+
+            **Script warnings:**
+            ```
+            ${{ steps.regen.outputs.warnings }}
+            ```
+
+            Review checklist (see README → "Updating the skill"):
+            - [ ] No `WARNING` lines above, or `DATASOURCE_GROUPS` in `scripts/generate_references.py` extended to cover the new/changed sections
+            - [ ] `git diff` on `references/` reviewed; if it touches syntax, operators, query types, or policy-evaluation limits, update the hand-written `SKILL.md` to match
+            - [ ] Example query YAML blocks in `examples.md` are intact
+            - [ ] `guide-version.json` updated to the new `version` / `fetched` date (done by the script)
