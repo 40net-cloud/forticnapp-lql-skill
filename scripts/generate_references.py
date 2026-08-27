@@ -1,12 +1,20 @@
-#!/usr/bin/env python3
-"""Regenerate .claude/skills/forticnapp-lql/references/ from the online
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "beautifulsoup4",
+#     "markdownify",
+# ]
+# ///
+"""Regenerate skills/forticnapp-lql/references/ from the online
 FortiCNAPP LQL Reference Guide (docs.fortinet.com).
 
 Usage:
-    python3 scripts/generate_references.py [--version 26.2]
+    uv run scripts/generate_references.py [--version 26.2]
 
-Requires: requests (or curl fallback), beautifulsoup4, markdownify
-    pip install beautifulsoup4 markdownify
+Dependencies (beautifulsoup4, markdownify, plus a curl on PATH) are declared
+both in the PEP 723 block above and in the repo pyproject.toml, so `uv run`
+resolves them automatically into an ephemeral environment.
 
 The script fetches the guide's HTML pages, extracts the main content div,
 converts it to markdown, cleans it (unescape, strip links, notes -> blockquotes),
@@ -118,7 +126,7 @@ def main():
     args = ap.parse_args()
 
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    dst = os.path.join(repo, ".claude", "skills", "forticnapp-lql", "references")
+    dst = os.path.join(repo, "skills", "forticnapp-lql", "references")
     os.makedirs(dst, exist_ok=True)
 
     md = {}

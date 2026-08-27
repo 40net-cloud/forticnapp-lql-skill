@@ -20,7 +20,8 @@ The skill condenses the ~239-page FortiCNAPP LQL Reference Guide (~90K tokens ra
     ├── datasources-oci.md          # LW_CFG_OCI_*
     └── datasources-agent-k8s.md    # LW_HA_*/LW_HE_*/LW_APA_*/LW_CE_* with fields
 scripts/
-└── generate_references.py          # regenerates references/ from docs.fortinet.com
+└── generate_references.py          # regenerates references/ from docs.fortinet.com (run with uv)
+pyproject.toml                      # dependency set for the regenerate script
 FortiCNAPP-LQL_Reference_Guide.pdf  # offline fallback copy of the guide (26.2)
 ```
 
@@ -39,12 +40,17 @@ The local PDF is a point-in-time offline copy; the HTML guide is the source of t
 
 ## Updating the skill
 
-1. Regenerate the reference files (needs Python 3 with `beautifulsoup4` and `markdownify`, plus `curl`):
+1. Regenerate the reference files. This needs [`uv`](https://docs.astral.sh/uv/) and `curl` on
+   your `PATH`; `uv` resolves `beautifulsoup4` and `markdownify` automatically from
+   `pyproject.toml` (also declared inline in the script via PEP 723), so there is no
+   virtualenv to create or activate:
 
    ```sh
-   pip install beautifulsoup4 markdownify
-   python3 scripts/generate_references.py --version 26.3   # stamp the new guide version
+   uv run scripts/generate_references.py --version 26.3   # stamp the new guide version
    ```
+
+   The script is also directly executable (`./scripts/generate_references.py --version 26.3`)
+   thanks to its `uv run --script` shebang.
 
 2. Review the script's output for `WARNING` lines — they mean the guide gained a new top-level datasource section or changed structure; add new sections to `DATASOURCE_GROUPS` in the script.
 

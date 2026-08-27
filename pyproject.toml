@@ -1,0 +1,14 @@
+[project]
+name = "forticnapp-lql-skill"
+version = "0.1.0"
+description = "Tooling to regenerate the FortiCNAPP LQL skill reference files from docs.fortinet.com"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "beautifulsoup4",
+    "markdownify",
+]
+
+# Not an installable package — just a dependency set for `uv run scripts/generate_references.py`.
+[tool.uv]
+package = false
