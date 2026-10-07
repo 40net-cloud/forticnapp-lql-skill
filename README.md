@@ -74,7 +74,7 @@ manual and are listed in the PR body.
    `skills/forticnapp-lql/guide-version.json` (`version` + `fetched` date) — commit it
    alongside the `references/` changes.
 
-2. Review the script's output for `WARNING` lines — they mean the guide gained a new top-level datasource section or changed structure; add new sections to `DATASOURCE_GROUPS` in the script.
+2. Review the script's output for `WARNING` lines — they mean the guide gained a new top-level datasource section or changed structure (add new sections to `DATASOURCE_GROUPS`), or that a known-errata patch in `fix_functions_errata` no longer matches (the guide fixed it upstream — drop that patch).
 
 3. `git diff` the `references/` files. Most updates only add datasources and need nothing further. If the diff touches **syntax, operators, query types, or the policy-evaluation limitations**, update the hand-written `SKILL.md` to match (it summarizes those rules and is *not* regenerated).
 

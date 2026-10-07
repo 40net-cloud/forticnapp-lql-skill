@@ -59,8 +59,13 @@ PAGES = {
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
 
-# The version-picker menu on every guide page carries: title: 'Version: 26.2.0'
-VERSION_RE = re.compile(r"Version:\s*([0-9]+(?:\.[0-9]+){1,2})")
+# Patterns tried in order. The site layout has changed before (the old
+# "Version: 26.2.0" version-picker text disappeared), so keep several.
+VERSION_RES = [
+    re.compile(r"<title>[^<]*FortiCNAPP\s+([0-9]+(?:\.[0-9]+){1,2})\b"),
+    re.compile(r'data-version="([0-9]+(?:\.[0-9]+){1,2})"'),
+    re.compile(r"Version:\s*([0-9]+(?:\.[0-9]+){1,2})"),
+]
 
 # Provider grouping for splitting the datasource-metadata page (## headings).
 DATASOURCE_GROUPS = {
@@ -83,14 +88,14 @@ def fetch(url):
 
 
 def detect_remote_version(html=None):
-    """Read the guide version from the docs-site version picker.
+    """Read the guide version from the docs-site page (title / data-version).
 
     Returns e.g. "26.2" (a trailing ".0" patch component is dropped so the
     value matches the two-part version stamped in existing provenance headers).
     """
     if html is None:
         html = fetch(PAGES["overview"])
-    m = VERSION_RE.search(html)
+    m = next((m for r in VERSION_RES if (m := r.search(html))), None)
     if not m:
         sys.exit("could not detect guide version — docs.fortinet.com layout may have changed")
     return re.sub(r"\.0$", "", m.group(1))
@@ -140,6 +145,33 @@ def compact_tables(text):
     return re.sub(r"\n{3,}", "\n\n", "\n".join(out))
 
 
+def fix_functions_errata(text):
+    """Correct known upstream errors in the LQL functions page.
+
+    The FortiCNAPP guide describes IP_CONTAINS twice. The detailed entry is
+    right ("return true if arg0 contains arg1"), but the summary-table row has
+    the arguments inverted ("returns true if A is a subset of ... B"). A model
+    that greps functions.md hits the table row first and gets the argument
+    order backwards, so rewrite that one row to agree with the detailed entry.
+    See https://github.com/40net-cloud/forticnapp-lql-skill/issues/1.
+    """
+    pat = re.compile(
+        r"^\| IP_CONTAINS \| Interprets two arguments A and B as sets of IP "
+        r"addresses and returns true if A is a subset of, or equal to, B\. \|$",
+        re.MULTILINE,
+    )
+    fixed = (
+        "| IP_CONTAINS | Interprets `arg0` and `arg1` as sets of IP addresses "
+        "and returns true if `arg0` contains `arg1` (i.e. `arg1` is a subset "
+        "of, or equal to, `arg0`). See the detailed entry below. |"
+    )
+    text, n = pat.subn(fixed, text)
+    if n == 0:
+        print("  WARNING: IP_CONTAINS summary-table errata pattern not found — "
+              "guide may have fixed it upstream; drop fix_functions_errata if so")
+    return text
+
+
 def provenance(urls, version):
     today = datetime.date.today().isoformat()
     lines = "\n".join("     " + u for u in urls)
@@ -181,7 +213,8 @@ def main():
     write("syntax.md",
           md["overview"] + "\n\n" + md["query-types"] + "\n\n" + md["lql-operators"],
           [PAGES["overview"], PAGES["query-types"], PAGES["lql-operators"]])
-    write("functions.md", md["lql-functions"], [PAGES["lql-functions"]])
+    write("functions.md", fix_functions_errata(md["lql-functions"]),
+          [PAGES["lql-functions"]])
     write("examples.md", md["example-queries"], [PAGES["example-queries"]])
 
     sections = re.split(r"\n(?=## )", compact_tables(md["datasource-metadata"]))
