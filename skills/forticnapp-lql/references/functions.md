@@ -40,7 +40,7 @@ This topic lists all Lacework Query Language functions alphabetically.
 | EPOCH_SEC | Returns a number that is seconds from epoch for a timestamp. |
 | HOUR_PART | Returns the hour of the day (number 0 to 23) from a timestamp. |
 | IP_ADDRESS | Returns the IP address part of a CIDR or IP address. |
-| IP_CONTAINS | Interprets two arguments A and B as sets of IP addresses and returns true if A is a subset of, or equal to, B. |
+| IP_CONTAINS | Interprets `arg0` and `arg1` as sets of IP addresses and returns true if `arg0` contains `arg1` (i.e. `arg1` is a subset of, or equal to, `arg0`). See the detailed entry below. |
 | IP_FAMILY | Returns the IP address family version as a number, 4 or 6. |
 | IP_HIGH_NETMASK_BITS | Returns the number of high bits in the netmask of a CIDR, also known as the network prefix bits. |
 | IS_ARRAY | Returns True if the input contains an ARRAY value. |

@@ -93,7 +93,7 @@ API equivalent: `POST /api/v2/Queries` then `POST /api/v2/Policies` (queryText a
 ## Detailed references (load on demand)
 
 - `references/syntax.md` — full grammar: data types, strings/identifiers, JSON access & casting, `source`/`filter`/`return` details, joining/connecting datasources (`with`, named paths, cardinality), `array_to_rows`, query types (single/join/semi-join), policy-eval limitations, regex syntax, all operators (`LIKE`, `RLIKE`, `IN`, `BETWEEN`, set ops, `CASE`…).
-- `references/functions.md` — all LQL functions (string, timestamp, JSON/array, net: `IP_CONTAINS`, `ARRAY_TO_ROWS`, `COALESCE`, `VALUE_EXISTS`, …). Grep by name or keyword.
+- `references/functions.md` — all LQL functions (string, timestamp, JSON/array, net: `IP_CONTAINS`, `ARRAY_TO_ROWS`, `COALESCE`, `VALUE_EXISTS`, …). Grep by name or keyword. Note: `IP_CONTAINS(arg0, arg1)` is true when `arg1` is inside `arg0` — put the wider CIDR/rule first, the probe address second (e.g. `ip_contains(ip_range:CidrIp::String, s'203.0.113.10/32')`).
 - `references/examples.md` — 15 worked queries (AWS compliance checks, tag checks, CloudTrail activity, K8s) with the API calls to run them.
 
 When unsure between reading and grepping: grep first; read only the matched section.
