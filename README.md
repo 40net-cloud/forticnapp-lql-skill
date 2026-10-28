@@ -12,14 +12,21 @@ The skill condenses the ~239-page FortiCNAPP LQL Reference Guide (~90K tokens ra
 │                                   #   constraints, workflow, policy YAML template
 ├── guide-version.json              # source of truth: which guide version references/ is built from
 └── references/                     # generated from the online docs
-    ├── syntax.md                   # grammar, joins, operators, policy-eval limits
+    ├── syntax.md                   # grammar, joins, policy-eval limits
+    ├── query-types.md              # single / join / semi-join
+    ├── operators.md                # all LQL operators
     ├── functions.md                # all LQL functions
     ├── examples.md                 # 15 worked example queries
-    ├── datasources-aws.md          # LW_CFG_AWS_* + CloudTrail (grep, don't read!)
-    ├── datasources-azure.md        # LW_CFG_AZURE_* (Resource Graph + Azure AD)
-    ├── datasources-gcp.md          # LW_CFG_GCP_* + audit log activity
+    ├── datasources-index.md        # file -> service range map (generated)
+    ├── datasources-aws-config-*.md # LW_CFG_AWS_*, alphabetical chunks (~6K tokens each)
+    ├── datasources-aws-cloudtrail.md
+    ├── datasources-azure-*.md      # LW_CFG_AZURE_*, chunked
+    ├── datasources-gcp-config-*.md # LW_CFG_GCP_*, chunked
+    ├── datasources-gcp-audit.md
     ├── datasources-oci.md          # LW_CFG_OCI_*
-    └── datasources-agent-k8s.md    # LW_HA_*/LW_HE_*/LW_APA_*/LW_CE_* with fields
+    ├── datasources-workload.md     # LW_HA_*/LW_HE_*
+    ├── datasources-attackpath.md   # LW_APA_*
+    └── datasources-entitlements.md # LW_CE_*
 scripts/
 └── generate_references.py          # regenerates references/ from docs.fortinet.com (run with uv)
 .github/workflows/
@@ -74,7 +81,7 @@ manual and are listed in the PR body.
    `skills/forticnapp-lql/guide-version.json` (`version` + `fetched` date) — commit it
    alongside the `references/` changes.
 
-2. Review the script's output for `WARNING` lines — they mean the guide gained a new top-level datasource section or changed structure (add new sections to `DATASOURCE_GROUPS`), or that a known-errata patch in `fix_functions_errata` no longer matches (the guide fixed it upstream — drop that patch).
+2. Review the script's output for `WARNING` lines — they mean the guide gained a new top-level datasource section or changed structure (add new sections to `DATASOURCE_GROUPS`; chunk filenames may change when services are added — that's expected), or that a known-errata patch in `fix_functions_errata` no longer matches (the guide fixed it upstream — drop that patch).
 
 3. `git diff` the `references/` files. Most updates only add datasources and need nothing further. If the diff touches **syntax, operators, query types, or the policy-evaluation limitations**, update the hand-written `SKILL.md` to match (it summarizes those rules and is *not* regenerated).
 
@@ -87,6 +94,6 @@ manual and are listed in the PR body.
 ## Maintenance notes
 
 - **`SKILL.md` is hand-maintained** — never overwrite it with generated content. Keep it small (~2K tokens); anything bulky belongs in `references/`.
-- **The datasource files are meant to be grepped**, not fully loaded (`datasources-aws.md` alone is ~32K tokens). `SKILL.md` instructs the model accordingly; preserve that guidance when editing.
+- **The datasource files are meant to be grepped**, not fully loaded (AWS config alone is ~32K tokens; the script splits each large section into ≤~6K-token chunks via `MAX_CHUNK_CHARS`). `SKILL.md` instructs the model accordingly; preserve that guidance when editing.
 - **Known gap (by design):** the guide does not document the JSON schema inside `RESOURCE_CONFIG`. The skill's workflow tells the model to verify field names via the underlying cloud provider API (each datasource maps to a named API call), `lacework query show-source`/`preview-source`, or an explore query returning bare `RESOURCE_CONFIG`. Do not "fix" this by guessing schemas into the reference files.
 - **Validating a change:** the cheapest end-to-end test is to open a Claude Code session in a scratch project containing the skill and ask it to draft a policy for one CIS control per provider, then check the chosen datasource names exist and the query respects the policy-evaluation constraints (`return distinct` + root-datasource-only columns when `array_to_rows` or MANY-cardinality joins are used).

@@ -67,18 +67,25 @@ VERSION_RES = [
     re.compile(r"Version:\s*([0-9]+(?:\.[0-9]+){1,2})"),
 ]
 
+# Selectors for the page's main content, tried in order.
+CONTENT_SELECTORS = ["article.reader__page div.prose", "div.prose", "div#content"]
+
 # Provider grouping for splitting the datasource-metadata page (## headings).
+# Keys are file stem prefixes; a group larger than MAX_CHUNK_CHARS is further
+# split on its "### " service headings into alphabetical chunks
+# (e.g. datasources-aws-config-a-c.md), so no single file is expensive to load.
 DATASOURCE_GROUPS = {
-    "datasources-aws.md": ["## AWS Configuration Datasources",
-                           "## CloudTrail Logging Datasources"],
-    "datasources-azure.md": ["## Azure Configuration Datasources"],
-    "datasources-gcp.md": ["## Google Cloud Configuration Datasources",
-                           "## Google Cloud Audit Log Activity"],
-    "datasources-oci.md": ["## OCI Configuration Datasources"],
-    "datasources-agent-k8s.md": ["## Workload Security Datasources",
-                                 "## Attack Path Analysis Datasources",
-                                 "## Cloud Entitlement Datasources"],
+    "datasources-aws-config": ["## AWS Configuration Datasources"],
+    "datasources-aws-cloudtrail": ["## CloudTrail Logging Datasources"],
+    "datasources-azure": ["## Azure Configuration Datasources"],
+    "datasources-gcp-config": ["## Google Cloud Configuration Datasources"],
+    "datasources-gcp-audit": ["## Google Cloud Audit Log Activity"],
+    "datasources-oci": ["## OCI Configuration Datasources"],
+    "datasources-workload": ["## Workload Security Datasources"],
+    "datasources-attackpath": ["## Attack Path Analysis Datasources"],
+    "datasources-entitlements": ["## Cloud Entitlement Datasources"],
 }
+MAX_CHUNK_CHARS = 24000  # ~6K tokens
 
 
 def fetch(url):
@@ -103,7 +110,9 @@ def detect_remote_version(html=None):
 
 def html_to_markdown(html):
     soup = BeautifulSoup(html, "html.parser")
-    el = soup.select_one("div#content")
+    # Current layout: <article class="reader__page"><div class="prose ...">.
+    # "div#content" was the previous layout; keep it as a fallback.
+    el = next((e for sel in CONTENT_SELECTORS if (e := soup.select_one(sel))), None)
     if el is None:
         sys.exit("content div not found — docs.fortinet.com layout may have changed")
     return to_md(str(el), heading_style="ATX")
@@ -172,6 +181,44 @@ def fix_functions_errata(text):
     return text
 
 
+def chunk_section(text, limit=MAX_CHUNK_CHARS):
+    """Split a "## " section on "### " headings into chunks of <= limit chars.
+
+    Returns [(label, text)]; label is "" for a single chunk, else "a-c" style
+    first/last letters of the first/last service in the chunk. The section
+    preamble (e.g. the common-fields list) is repeated at the top of every chunk.
+    """
+    if len(text) <= limit:
+        return [("", text)]
+    parts = re.split(r"\n(?=### )", text)
+    pre, units = parts[0], parts[1:]
+    if not units:
+        return [("", text)]
+    chunks, cur = [], []
+    size = len(pre)
+    for u in units:
+        if cur and size + len(u) > limit:
+            chunks.append(cur)
+            cur, size = [], len(pre)
+        cur.append(u)
+        size += len(u) + 1
+    chunks.append(cur)
+
+    def letter(unit):
+        ch = unit[4:5].lower()
+        return ch if ch.isalnum() else "x"
+
+    out, used = [], set()
+    for c in chunks:
+        a, b = letter(c[0]), letter(c[-1])
+        label = a if a == b else f"{a}-{b}"
+        while label in used:  # same range twice: disambiguate
+            label += "x"
+        used.add(label)
+        out.append((label, pre + "\n" + "\n".join(c)))
+    return out
+
+
 def provenance(urls, version):
     today = datetime.date.today().isoformat()
     lines = "\n".join("     " + u for u in urls)
@@ -210,24 +257,45 @@ def main():
             fh.write(provenance(urls, version) + content)
         print(f"  wrote {fname} ({len(content) // 4} tokens approx)")
 
-    write("syntax.md",
-          md["overview"] + "\n\n" + md["query-types"] + "\n\n" + md["lql-operators"],
-          [PAGES["overview"], PAGES["query-types"], PAGES["lql-operators"]])
+    write("syntax.md", md["overview"], [PAGES["overview"]])
+    write("query-types.md", md["query-types"], [PAGES["query-types"]])
+    write("operators.md", md["lql-operators"], [PAGES["lql-operators"]])
     write("functions.md", fix_functions_errata(md["lql-functions"]),
           [PAGES["lql-functions"]])
     write("examples.md", md["example-queries"], [PAGES["example-queries"]])
 
     sections = re.split(r"\n(?=## )", compact_tables(md["datasource-metadata"]))
     by_title = {s.split("\n", 1)[0].strip(): s for s in sections[1:]}
-    for fname, titles in DATASOURCE_GROUPS.items():
+    # Drop previously generated datasource files so renamed/re-chunked ones don't linger.
+    for old in os.listdir(dst):
+        if old.startswith("datasources-") and old.endswith(".md"):
+            os.remove(os.path.join(dst, old))
+    index = []
+    for stem, titles in DATASOURCE_GROUPS.items():
         parts = []
         for t in titles:
             if t not in by_title:
                 print(f"  WARNING: section {t!r} not found — guide structure changed?")
                 continue
             parts.append(by_title.pop(t))
-        write(fname, "# Datasource Metadata\n\n" + "\n\n".join(parts),
-              [PAGES["datasource-metadata"]])
+        for part in parts:
+            for label, body in chunk_section(part):
+                fname = f"{stem}-{label}.md" if label else f"{stem}.md"
+                if fname in {i[0] for i in index}:  # two sections in one stem
+                    fname = fname.replace(".md", "-2.md")
+                write(fname, "# Datasource Metadata\n\n" + body, [PAGES["datasource-metadata"]])
+                services = re.findall(r"^### (.+)$", body, re.MULTILINE)
+                names = re.findall(r"^- `([A-Z0-9_a-z]+)` — ", body, re.MULTILINE)
+                heading = part.split("\n", 1)[0].lstrip("# ").strip()
+                rng = ("(no sub-sections)" if not services else services[0] if len(services) == 1
+                       else f"{services[0]} … {services[-1]}")
+                index.append((fname, heading, rng))
+    with open(os.path.join(dst, "datasources-index.md"), "w") as fh:
+        fh.write("# Datasource files\n\nGrep these files for a service name; "
+                 "each file lists its services alphabetically.\n\n")
+        for fname, heading, rng in index:
+            fh.write(f"- `{fname}` — {heading}: {rng}\n")
+    print("  wrote datasources-index.md")
     for leftover in by_title:
         print(f"  WARNING: unassigned section {leftover!r} — add it to DATASOURCE_GROUPS")
 

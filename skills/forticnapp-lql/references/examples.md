@@ -1,4 +1,4 @@
-<!-- Generated from FortiCNAPP 26.2 LQL Reference Guide (fetched 2026-08-26). Source:
+<!-- Generated from FortiCNAPP 26.2 LQL Reference Guide (fetched 2026-10-28). Source:
      https://docs.fortinet.com/document/forticnapp/latest/lql-reference/435177/example-queries -->
 
 # Example Queries

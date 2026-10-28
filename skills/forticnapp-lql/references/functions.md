@@ -1,4 +1,4 @@
-<!-- Generated from FortiCNAPP 26.2 LQL Reference Guide (fetched 2026-08-26). Source:
+<!-- Generated from FortiCNAPP 26.2 LQL Reference Guide (fetched 2026-10-28). Source:
      https://docs.fortinet.com/document/forticnapp/latest/lql-reference/486918/lql-functions -->
 
 # LQL Functions
@@ -775,7 +775,7 @@ Arguments
 
 * `key::JSON`: Where key is the key to evaluate.
 
-Returns True if the JSON object `key` has a non-null value. `VALUE_EXISTS` considers empty values such as `[]`, `{}`, `““` to be actual values.
+Returns True if the JSON object `key` has a non-null value. `VALUE_EXISTS` considers empty values such as `[]`, `{}`, `""` to be actual values.
 
 ---
 

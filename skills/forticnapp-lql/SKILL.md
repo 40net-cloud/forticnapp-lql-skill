@@ -54,21 +54,25 @@ Optionally add a literal `'Reason' as COMPLIANCE_FAILURE_REASON`.
 
 ## Choosing a datasource
 
-Config datasources are named `LW_CFG_<PROVIDER>_<SERVICE>_<API>` and mirror the provider's describe/list APIs; each row is one resource with its config in the JSON `RESOURCE_CONFIG` field and common identity columns (see the per-provider reference file headers). **Do not read a whole datasource reference file — grep it for the service name**, e.g. `grep -i -A5 'cloudtrail' references/datasources-aws.md`.
+Config datasources are named `LW_CFG_<PROVIDER>_<SERVICE>_<API>` and mirror the provider's describe/list APIs; each row is one resource with its config in the JSON `RESOURCE_CONFIG` field and common identity columns (see the common-fields list at the top of each file). Datasource references are split into small alphabetical chunks; **start from `references/datasources-index.md`** (file → service range) or grep across the chunks, e.g. `grep -i -A5 '^### CloudTrail' references/datasources-aws-config-*.md`.
 
-| Reference file | Contents |
+| Reference files | Contents |
 | --- | --- |
-| `references/datasources-aws.md` | AWS config (`LW_CFG_AWS_*`) + CloudTrail activity (`CloudTrailRawEvents`) |
-| `references/datasources-azure.md` | Azure Resource Graph + Azure AD (`LW_CFG_AZURE_*`) |
-| `references/datasources-gcp.md` | Google Cloud config (`LW_CFG_GCP_*`) + audit log activity (`LW_ACT_GCP_ACTIVITY`) |
+| `references/datasources-index.md` | File → service-range map; read this first |
+| `references/datasources-aws-config-*.md` | AWS config (`LW_CFG_AWS_*`), chunked by service name |
+| `references/datasources-aws-cloudtrail.md` | CloudTrail activity (`CloudTrailRawEvents`) |
+| `references/datasources-azure-*.md` | Azure Resource Graph + Azure AD (`LW_CFG_AZURE_*`), chunked |
+| `references/datasources-gcp-config-*.md` | Google Cloud config (`LW_CFG_GCP_*`), chunked |
+| `references/datasources-gcp-audit.md` | GCP audit log activity (`LW_ACT_GCP_ACTIVITY`) |
 | `references/datasources-oci.md` | OCI config (`LW_CFG_OCI_*`) |
-| `references/datasources-agent-k8s.md` | Agent/workload (`LW_HA_*` activity, `LW_HE_*` entities incl. K8s pods/containers), attack path (`LW_APA_*`), entitlements (`LW_CE_*`) — full field lists |
+| `references/datasources-workload.md` | Agent/workload (`LW_HA_*` activity, `LW_HE_*` entities incl. K8s pods/containers) |
+| `references/datasources-attackpath.md`, `datasources-entitlements.md` | Attack path (`LW_APA_*`), entitlements (`LW_CE_*`) |
 
 The guide does **not** document the JSON schema inside `RESOURCE_CONFIG`. To discover field names: consult the underlying cloud API (each datasource maps to a named API call, e.g. `acm list-certificates`), or run an explore query returning bare `RESOURCE_CONFIG` via `lacework query run -f explore.yaml`, or `lacework query show-source <DATASOURCE>` / `preview-source`.
 
 ## Workflow: compliance control → policy
 
-1. **Pick the datasource(s)**: grep the provider reference file for the service.
+1. **Pick the datasource(s)**: look up the service in `datasources-index.md`, then grep that chunk.
 2. **Discover `RESOURCE_CONFIG` fields** (see above) — never guess key names silently; verify casing against the cloud API.
 3. **Write the query YAML** (`queryId` + `queryText`, as in the anatomy example) targeting *non-compliant* resources; respect the policy-evaluation constraints.
 4. **Test**: `lacework query create -f q.yaml` (or `run -f` without saving), then `lacework query run <queryId>`.
@@ -92,7 +96,9 @@ API equivalent: `POST /api/v2/Queries` then `POST /api/v2/Policies` (queryText a
 
 ## Detailed references (load on demand)
 
-- `references/syntax.md` — full grammar: data types, strings/identifiers, JSON access & casting, `source`/`filter`/`return` details, joining/connecting datasources (`with`, named paths, cardinality), `array_to_rows`, query types (single/join/semi-join), policy-eval limitations, regex syntax, all operators (`LIKE`, `RLIKE`, `IN`, `BETWEEN`, set ops, `CASE`…).
+- `references/syntax.md` — grammar: data types, strings/identifiers, JSON access & casting, `source`/`filter`/`return` details, joining/connecting datasources (`with`, named paths, cardinality), `array_to_rows`, policy-eval limitations, regex syntax.
+- `references/query-types.md` — single datasource / join / semi-join (`in` / `not in`) queries.
+- `references/operators.md` — all operators (`LIKE`, `RLIKE`, `IN`, `BETWEEN`, set ops, `CASE`…).
 - `references/functions.md` — all LQL functions (string, timestamp, JSON/array, net: `IP_CONTAINS`, `ARRAY_TO_ROWS`, `COALESCE`, `VALUE_EXISTS`, …). Grep by name or keyword. Note: `IP_CONTAINS(arg0, arg1)` is true when `arg1` is inside `arg0` — put the wider CIDR/rule first, the probe address second (e.g. `ip_contains(ip_range:CidrIp::String, s'203.0.113.10/32')`).
 - `references/examples.md` — 15 worked queries (AWS compliance checks, tag checks, CloudTrail activity, K8s) with the API calls to run them.
 
