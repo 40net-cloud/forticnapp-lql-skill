@@ -1,0 +1,11 @@
+{
+  "name": "forticnapp-lql",
+  "version": "0.1.0",
+  "description": "Author Lacework FortiCNAPP LQL queries and custom policies (AWS, Azure, GCP, OCI, Kubernetes, workload data) from the official LQL Reference Guide.",
+  "author": {
+    "name": "Joeri Van Hoof"
+  },
+  "homepage": "https://github.com/40net-cloud/forticnapp-lql-skill",
+  "repository": "https://github.com/40net-cloud/forticnapp-lql-skill",
+  "keywords": ["fortinet", "forticnapp", "lacework", "lql", "cspm", "compliance", "skill"]
+}

@@ -1,0 +1,49 @@
+name: Release
+
+# Build a downloadable skill package whenever a version tag is pushed:
+#   git tag v0.2.0 && git push origin v0.2.0
+# The tag must match "version" in .claude-plugin/plugin.json.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches plugin version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver="$(jq -r .version .claude-plugin/plugin.json)"
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match .claude-plugin/plugin.json version $ver"
+            exit 1
+          fi
+
+      - name: Build packages
+        run: |
+          mkdir dist
+          # Skill-only package: the forticnapp-lql/ folder at the zip root
+          # (the layout Claude.ai "Upload skill" and ~/.claude/skills expect).
+          (cd skills && zip -r -X "../dist/forticnapp-lql-${GITHUB_REF_NAME}.zip" forticnapp-lql)
+          (cd skills && tar -czf "../dist/forticnapp-lql-${GITHUB_REF_NAME}.tar.gz" forticnapp-lql)
+          unzip -l "dist/forticnapp-lql-${GITHUB_REF_NAME}.zip" | grep -q 'forticnapp-lql/SKILL.md'
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          guide="$(jq -r .version skills/forticnapp-lql/guide-version.json)"
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "Built from FortiCNAPP LQL Reference Guide **${guide}**.
+
+          **Install:** download \`forticnapp-lql-${GITHUB_REF_NAME}.zip\` and unzip it into \`~/.claude/skills/\` (or a project's \`.claude/skills/\`), or upload the zip in Claude.ai under Settings → Capabilities → Skills. Or use the plugin marketplace: \`/plugin marketplace add ${GITHUB_REPOSITORY}\` then \`/plugin install forticnapp-lql@forticnapp-lql-skill\`."

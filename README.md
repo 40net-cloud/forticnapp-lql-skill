@@ -7,7 +7,7 @@ The skill condenses the ~239-page FortiCNAPP LQL Reference Guide (~90K tokens ra
 ## Layout
 
 ```
-.claude/skills/forticnapp-lql/
+skills/forticnapp-lql/
 ├── SKILL.md                        # hand-written core: query anatomy, policy
 │                                   #   constraints, workflow, policy YAML template
 ├── guide-version.json              # source of truth: which guide version references/ is built from
@@ -34,7 +34,35 @@ scripts/
 pyproject.toml                      # dependency set for the regenerate script
 ```
 
-The skill auto-activates in any Claude Code session opened in this repo. To use it in other projects, copy `.claude/skills/forticnapp-lql/` into that project's `.claude/skills/`, or into `~/.claude/skills/` to make it personal/global.
+## Installation
+
+**Claude Code plugin marketplace (recommended)** — updates arrive with `/plugin marketplace update`:
+
+```
+/plugin marketplace add 40net-cloud/forticnapp-lql-skill
+/plugin install forticnapp-lql@forticnapp-lql-skill
+```
+
+**Release download** — grab `forticnapp-lql-<tag>.zip` from the [Releases](../../releases) page and unzip it into `~/.claude/skills/` (personal) or `<project>/.claude/skills/` (per project). The same zip can be uploaded in Claude.ai under Settings → Capabilities → Skills.
+
+**Clone** — the skill auto-activates in any Claude Code session opened in this repo.
+
+## Releasing
+
+1. Bump `version` in `.claude-plugin/plugin.json`, commit.
+2. `git tag vX.Y.Z && git push origin vX.Y.Z`
+
+`.github/workflows/release.yml` fails if the tag and `plugin.json` version disagree, then publishes a GitHub release with the zip and tar.gz.
+
+### Release information
+
+- **Packaging:** the release assets contain only `skills/forticnapp-lql/` (the `forticnapp-lql/` folder sits at the archive root), so they work for `~/.claude/skills/`, project `.claude/skills/`, and the Claude.ai skill upload.
+- **Marketplace manifests:** `.claude-plugin/plugin.json` describes the plugin and `.claude-plugin/marketplace.json` makes this repo its own marketplace (`source: "./"`; the plugin's skills are picked up from `skills/`). Keep `name` in both files in sync with the skill folder name.
+- **Versioning:** the plugin version (`plugin.json`) is independent of the FortiCNAPP guide version (`skills/forticnapp-lql/guide-version.json`). Each release note states which guide version it was built from. Merging a weekly refresh PR does not publish a release; bump the version and tag when you want to ship it.
+- **Other agents:** the skill is plain markdown (`SKILL.md` plus `references/`), so any tool that reads the Agent Skills format can use the release zip. Tools with their own rules-file formats (e.g. Cursor) would need a separate conversion.
+- **Official directory:** the self-hosted marketplace works without approval. The plugin can also be submitted to Anthropic's plugin directory.
+- **Disclaimer:** this is an unofficial, community project and is not affiliated with or endorsed by Fortinet. The reference files are derived from Fortinet's public documentation.
+- **License:** no `LICENSE` file has been added yet. Add one before encouraging reuse, and check Fortinet's documentation terms for the generated reference content.
 
 ## Source of truth
 
@@ -87,7 +115,7 @@ manual and are listed in the PR body.
 
 4. Spot-check quality:
    - No raw `\_` escapes, `| --- |` table separators, or `[text](url)` links in the generated files (the cleaner should have handled them).
-   - `grep -i -A5 '^### <SomeService>' .claude/skills/forticnapp-lql/references/datasources-azure.md` returns a sensible datasource list.
+   - `grep -i -A5 '^### <SomeService>' skills/forticnapp-lql/references/datasources-azure-a-h.md` returns a sensible datasource list.
    - Example query YAML blocks in `examples.md` are intact.
    - `skills/forticnapp-lql/guide-version.json` shows the new `version` / `fetched` date.
 
@@ -97,3 +125,7 @@ manual and are listed in the PR body.
 - **The datasource files are meant to be grepped**, not fully loaded (AWS config alone is ~32K tokens; the script splits each large section into ≤~6K-token chunks via `MAX_CHUNK_CHARS`). `SKILL.md` instructs the model accordingly; preserve that guidance when editing.
 - **Known gap (by design):** the guide does not document the JSON schema inside `RESOURCE_CONFIG`. The skill's workflow tells the model to verify field names via the underlying cloud provider API (each datasource maps to a named API call), `lacework query show-source`/`preview-source`, or an explore query returning bare `RESOURCE_CONFIG`. Do not "fix" this by guessing schemas into the reference files.
 - **Validating a change:** the cheapest end-to-end test is to open a Claude Code session in a scratch project containing the skill and ask it to draft a policy for one CIS control per provider, then check the chosen datasource names exist and the query respects the policy-evaluation constraints (`return distinct` + root-datasource-only columns when `array_to_rows` or MANY-cardinality joins are used).
+
+## License
+
+[License](/../../blob/main/LICENSE) © Fortinet Technologies. All rights reserved.
